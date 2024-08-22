@@ -1,26 +1,29 @@
-import chromadb
-from langchain_huggingface import HuggingFaceEmbeddings
-import requests
-import json
+import csv
 import io
+import json
 import struct
+import timeit
+
+import chromadb
+import requests
 from fastavro import schemaless_reader
 from kafka import KafkaConsumer
-import timeit
-import csv
+from langchain_huggingface import HuggingFaceEmbeddings
 
-SCHEMA_REGISTRY_URL = 'http://localhost:8081'
+SCHEMA_REGISTRY_URL = "http://localhost:8081"
 # Initialize Chroma client
-client = chromadb.HttpClient(host='localhost', port=8000)
+client = chromadb.HttpClient(host="localhost", port=8000)
 
 # Get or create a collection
-collection = client.get_or_create_collection(name="chroma_768_webshop", metadata={"hnsw:space": "cosine"})
+collection = client.get_or_create_collection(
+    name="chroma_768_webshop", metadata={"hnsw:space": "cosine"}
+)
 
 # Initialize embeddings
 embeddings = HuggingFaceEmbeddings()
 
 
-def add_data_to_chroma(text: str, id:str):
+def add_data_to_chroma(text: str, id: str):
     # Generate the embedding for the text
     vector = embeddings.embed_query(text)
 
@@ -30,15 +33,15 @@ def add_data_to_chroma(text: str, id:str):
     collection.add(
         embeddings=[vector],
         metadatas=[{"customer": text}],  # Metadata should be a dictionary
-        ids=[id]
+        ids=[id],
     )
 
 
 def get_schema(schema_id):
     """Fetch the Avro schema from Schema Registry."""
-    response = requests.get(f'{SCHEMA_REGISTRY_URL}/schemas/ids/{schema_id}')
+    response = requests.get(f"{SCHEMA_REGISTRY_URL}/schemas/ids/{schema_id}")
     if response.status_code == 200:
-        schema = response.json()['schema']
+        schema = response.json()["schema"]
         return json.loads(schema)
     else:
         raise Exception(f"Failed to fetch schema {schema_id}: {response.text}")
@@ -50,7 +53,9 @@ def deserialize_avro_message(message):
 
     # Read magic byte and schema ID
     magic_byte = bytes_reader.read(1)  # Read the magic byte
-    schema_id = struct.unpack('>I', bytes_reader.read(4))[0]  # Unpack schema ID as a 4-byte integer
+    schema_id = struct.unpack(">I", bytes_reader.read(4))[
+        0
+    ]  # Unpack schema ID as a 4-byte integer
 
     # Get schema from Schema Registry
     schema = get_schema(schema_id)
@@ -62,18 +67,20 @@ def deserialize_avro_message(message):
 
 # Kafka Consumer Setup
 consumer = KafkaConsumer(
-    'kafka_postgres_.webshop.customer',
-    bootstrap_servers=['localhost:9092', 'localhost:9093'],
-    auto_offset_reset='latest',  # Change to 'latest' if you want to start from the latest messages
+    "kafka_postgres_.webshop.customer",
+    bootstrap_servers=["localhost:9092", "localhost:9093"],
+    auto_offset_reset="latest",  # Change to 'latest' if you want to start from the latest messages
     enable_auto_commit=False,
-    group_id='my_group_id',
+    group_id="my_group_id",
 )
 
 # Initialize the counter and start time
 
 for message in consumer:
     try:
-        deserialized_message = deserialize_avro_message(message.value)  # schema is fetched dynamically
+        deserialized_message = deserialize_avro_message(
+            message.value
+        )  # schema is fetched dynamically
         print("Deserialized message: ", deserialized_message)
         text = (
             f"Customer #{deserialized_message['id']} is {deserialized_message['firstname']} "
@@ -86,4 +93,3 @@ for message in consumer:
 
     except Exception as e:
         print(f"Failed to deserialize message: {e}")
-
