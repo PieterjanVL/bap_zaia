@@ -1,0 +1,31 @@
+akhq:
+  server:
+    access-log: true
+  security:
+    default-group: no-roles
+    groups:
+      admin:
+        - admin
+        - topic/read
+        - topic/insert
+        - topic/delete
+        - node/read
+        - node/alter
+        - node/config
+        - consumer-group/read
+        - consumer-group/delete
+        - schema/delete
+        - registry/delete
+    basic-auth:
+      - username: admin
+        password: admin
+        groups: [admin]
+micronaut:
+  security:
+    enabled: true
+    token:
+      jwt:
+        signatures:
+          secret:
+            generator:
+              secret: "verySecretSecret"
